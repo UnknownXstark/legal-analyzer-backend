@@ -27,3 +27,11 @@ class RegisterSerializer(serializers.ModelSerializer):
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
+
+# Summary for phase 1:
+    # RegisterSerializer: Creates new users and hashes their password.
+
+    # LoginSerializer: Reads username and password for login.
+
+    # UserSerializer: Returns clean user info in JSON format.
+# Then in views.py, we use these serializers to handle registration and login logic.

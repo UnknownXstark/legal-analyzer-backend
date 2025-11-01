@@ -41,3 +41,4 @@ class LoginView(generics.GenericAPIView):
         # access → used for every API request
         # refresh → used to get new tokens when the old one expires
     # The user’s info is sent back as confirmation.
+    # Then we create the routes in users/urls.py to link to these views.
