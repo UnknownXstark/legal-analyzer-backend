@@ -26,6 +26,13 @@ class Document(models.Model):
     # Then we can create a serializer for this model in serializers.py and set up views and URLs to handle document uploads and retrievals.
 
 
+     # New field to store extracted text (Start of phase 4)
+    extracted_text = models.TextField(blank=True, null=True)
+    # Summary for phase 4:
+    # "extracted_text" was addded to save the converted text.
+    # Later we will run AI/NLP analysis on this field.
+    # Go to utils.py
+
     
 
     def __str__(self):

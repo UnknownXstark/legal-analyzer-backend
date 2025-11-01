@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status, permissions, generics
 from .models import Document
 from .serializers import DocumentSerializer
-# from .utils import extract_text_from_pdf, extract_text_from_word, extract_text_from_txt
+from .utils import extract_text_from_pdf, extract_text_from_word, extract_text_from_txt
 # from .analysis import analyze_document_text
 # from .summarizer import generate_summary
 import os
@@ -39,19 +39,19 @@ class DocumentUploadView(APIView):
             file_type=file_type
         )
 
-        # # Extract text after saving (step 4 in phase 4)
-        # file_path = document.file.path
-        # extracted_text = ""
+        # Extract text after saving (step 4 in phase 4)
+        file_path = document.file.path
+        extracted_text = ""
 
-        # if file_type == 'pdf':
-        #     extracted_text = extract_text_from_pdf(file_path)
-        # elif file_type == 'word':
-        #     extracted_text = extract_text_from_word(file_path)
-        # elif file_type == 'text':
-        #     extracted_text = extract_text_from_txt(file_path)
+        if file_type == 'pdf':
+            extracted_text = extract_text_from_pdf(file_path)
+        elif file_type == 'word':
+            extracted_text = extract_text_from_word(file_path)
+        elif file_type == 'text':
+            extracted_text = extract_text_from_txt(file_path)
 
-        # document.extracted_text = extracted_text
-        # document.save()
+        document.extracted_text = extracted_text
+        document.save()
 
         serializer = DocumentSerializer(document)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -63,3 +63,17 @@ class DocumentUploadView(APIView):
     # Returns document data as JSON.
     # Route is protected so only authenticated users can upload documents.
 # From here we move on to setting up routes in urls.py.
+
+# (step 5 in phase 4) 
+class DocumentDetailView(generics.RetrieveAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = Document.objects.all()
+    serializer_class = DocumentSerializer
+
+# Summary for phase 4:
+    # After uploading, Django save the file to disk.
+    # Then we open it and extract the text using the correct function.
+    # The extracted text is stored inside "document.extracted_text".
+    # The response still returns the same document JSON.
+    # DocumentDerailView added to retrieve individual documents.
+# Next we go to urls.py to set up the routes.
