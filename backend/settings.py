@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'documents',
     'analysis',
     'risks',
+    'notifications',
 ]
 
 MIDDLEWARE = [

@@ -9,6 +9,7 @@ from .utils import extract_text_from_pdf, extract_text_from_word, extract_text_f
 from .analysis import analyze_document_text
 from .summarizer import generate_summary
 from .permissions import IsAdmin, IsLawyer
+from notifications.utils import create_notification, log_activity
 import os
 
 # Create your views here.
@@ -40,6 +41,9 @@ class DocumentUploadView(APIView):
             file=file,
             file_type=file_type
         )
+
+        create_notification(request.user, f"Document '{document.title}' uploaded successfully.")
+        log_activity(request.user, "Uploaded document", {"document_id": document.id, "title": document.title})
 
         # Extract text after saving (step 4 in phase 4)
         file_path = document.file.path
@@ -97,6 +101,9 @@ class DocumentAnalysisView(APIView):
         document.risk_score = results['risk_score']
         document.save()
 
+        create_notification(request.user, f"Document '{document.title}' analyzed. Risk score: {document.risk_score}")
+        log_activity(request.user, "Analyzed document", {"document_id": document.id, "risk": document.risk_score})
+
         serializer = DocumentSerializer(document)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
@@ -122,6 +129,9 @@ class DocumentReportView(APIView):
         summary = generate_summary(document.extracted_text)
         document.summary = summary
         document.save()
+
+        create_notification(request.user, f"Report generated for '{document.title}'")
+        log_activity(request.user, "Generated report", {"document_id": document.id})
 
         serializer = DocumentSerializer(document)
         return Response(serializer.data, status=status.HTTP_200_OK)
