@@ -33,6 +33,15 @@ class Document(models.Model):
     # Later we will run AI/NLP analysis on this field.
     # Go to utils.py
 
+    # New fields for AI Analysis (Start of phase 5)
+    clauses_found = models.JSONField(blank=True, null=True)
+    risk_score = models.CharField(max_length=20, blank=True, null=True)
+
+    # Summary for phase 5:
+        # "clauses_found": stores a dictionary of clause names and their occurrences (e.g., { "Confidentiality": true, "Termination": false })
+        # "risk_score": stores the final AI risk level (Low / Medium / High)
+        # These fields will be populated after AI analysis.
+
     
 
     def __str__(self):

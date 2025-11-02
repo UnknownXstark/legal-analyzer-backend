@@ -5,7 +5,7 @@ from rest_framework import status, permissions, generics
 from .models import Document
 from .serializers import DocumentSerializer
 from .utils import extract_text_from_pdf, extract_text_from_word, extract_text_from_txt
-# from .analysis import analyze_document_text
+from .analysis import analyze_document_text
 # from .summarizer import generate_summary
 import os
 
@@ -77,3 +77,29 @@ class DocumentDetailView(generics.RetrieveAPIView):
     # The response still returns the same document JSON.
     # DocumentDerailView added to retrieve individual documents.
 # Next we go to urls.py to set up the routes.
+
+class DocumentAnalysisView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            document = Document.objects.get(pk=pk, user=request.user)
+        except Document.DoesNotExist:
+            return Response({"error": "Document not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        if not document.extracted_text:
+            return Response({"error": "No extracted text available for analysis"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        results = analyze_document_text(document.extracted_text)
+        document.clauses_found = results['clauses_found']
+        document.risk_score = results['risk_score']
+        document.save()
+
+        serializer = DocumentSerializer(document)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+# Summary for phase 5:
+    # Only logged-in users can analyze their own documents.
+    # The endpoint takes a document ID (pk), finds its text, analyzes it, and updates the DB.
+    # It returns the full document data, now including AI results.
+# Next we go to urls.py to add the analysis route.
