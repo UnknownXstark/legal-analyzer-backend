@@ -2,11 +2,13 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions, generics
+from rest_framework.permissions import IsAuthenticated
 from .models import Document
 from .serializers import DocumentSerializer
 from .utils import extract_text_from_pdf, extract_text_from_word, extract_text_from_txt
 from .analysis import analyze_document_text
 from .summarizer import generate_summary
+from .permissions import IsAdmin, IsLawyer
 import os
 
 # Create your views here.
@@ -129,4 +131,41 @@ class DocumentReportView(APIView):
     # It checks for extracted text.
     # Runs the summarization model.
     # Saves the summary to the document and returns updated data.
+# Next we add this route to urls.py.
+
+
+class IndividualDashboardView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = DocumentSerializer
+
+    def get_queryset(self):
+        return Document.objects.filter(user=self.request.user)
+    
+
+class LawyerDashboardView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated, IsLawyer]
+    serializer_class = DocumentSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role != 'lawyer':
+            return Document.objects.none()
+        # For now, show all documents; later link to assigned clients
+        return Document.objects.all()
+    
+
+class AdminDashboardView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated, IsAdmin]
+    serializer_class = DocumentSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role != 'admin':
+            return Document.object.none()
+        return Document.objects.all()
+    
+# Summary for phase 7:
+    # IndividualDashboardView: filters by 'user=request.user'
+    # lawyerDashboardView: for now, returns all
+    # AdminDashboardView: unrestricted view (shows all uploads)
 # Next we add this route to urls.py.

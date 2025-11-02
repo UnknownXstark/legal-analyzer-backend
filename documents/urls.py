@@ -1,11 +1,16 @@
 from django.urls import path
-from .views import DocumentUploadView, DocumentDetailView, DocumentAnalysisView, DocumentReportView
+from .views import DocumentUploadView, DocumentDetailView, DocumentAnalysisView, DocumentReportView, IndividualDashboardView, AdminDashboardView, LawyerDashboardView
 
 urlpatterns = [
     path('upload/', DocumentUploadView.as_view(), name='document-upload'),
     path('<int:pk>/', DocumentDetailView.as_view(), name='document-detail'),
     path('<int:pk>/analyze/', DocumentAnalysisView.as_view(), name='document-analyze'),
-    path('<int:pk>/report/', DocumentReportView.as_view(), name='document-report')
+    path('<int:pk>/report/', DocumentReportView.as_view(), name='document-report'),
+
+    # Dashboards
+    path('dashboard/individual/', IndividualDashboardView.as_view(), name='individual-dashboard'),
+    path('dashboard/lawyer/', LawyerDashboardView.as_view(), name='lawyer-dashboard'),
+    path('dashboard/admin/', AdminDashboardView.as_view(), name='admin-dashboard'),
 ]
 
 
@@ -21,3 +26,6 @@ urlpatterns = [
 
 # Summary for phase 6:
     # Added the route for report generation.
+
+# Summary for phase 7:
+    # Added the routes for each dashboard.

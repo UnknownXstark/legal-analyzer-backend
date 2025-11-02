@@ -13,3 +13,8 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.username} ({self.role})"
+
+# This gives us three distinct user types:
+    # Individual → Can upload, analyze, and view only their own documents.
+    # Lawyer → Can view documents from their clients.
+    # Admin → Can view all documents across the platform.
