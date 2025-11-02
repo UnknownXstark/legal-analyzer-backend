@@ -43,6 +43,14 @@ class Document(models.Model):
         # These fields will be populated after AI analysis.
 
     
+    # New field for summarized report text (Phase 6)
+    summary = models.TextField(blank=True, null=True)
+
+    # Summary for phase 6:
+        # We added "summary", this will hold the AI-generated summary of the document.
+    # Next we create a new file called "summarizer.py" to implement the summarization logic.
+
+    
 
     def __str__(self):
         return f"{self.title} - {self.user.username}"
