@@ -1,11 +1,13 @@
 from django.urls import path
-from .views import DocumentUploadView, DocumentDetailView, DocumentAnalysisView, DocumentReportView, IndividualDashboardView, AdminDashboardView, LawyerDashboardView
+from .views import DocumentListView, DocumentUploadView, DocumentDetailView, DocumentAnalysisView, DocumentReportView, DocumentDeleteView, IndividualDashboardView, AdminDashboardView, LawyerDashboardView
 
 urlpatterns = [
+    path('', DocumentListView.as_view(), name='document-list'),
     path('upload/', DocumentUploadView.as_view(), name='document-upload'),
-    path('<int:pk>/', DocumentDetailView.as_view(), name='document-detail'),
+    path('<int:pk>/',  DocumentDetailView.as_view(), name='document-detail'),
     path('<int:pk>/analyze/', DocumentAnalysisView.as_view(), name='document-analyze'),
     path('<int:pk>/report/', DocumentReportView.as_view(), name='document-report'),
+    path('<int:pk>/delete/', DocumentDeleteView.as_view(), name='document-delete'),
 
     # Dashboards
     path('dashboard/individual/', IndividualDashboardView.as_view(), name='individual-dashboard'),
