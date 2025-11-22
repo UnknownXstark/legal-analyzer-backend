@@ -15,24 +15,53 @@ class RegisterView(generics.CreateAPIView):
     permission_classes = [AllowAny]
     serializer_class = RegisterSerializer
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = serializer.save()
+        refresh = RefreshToken.for_user(user)
+
+        response_data = {
+            "user": UserSerializer(user).data,
+            "access": str(refresh.access_token),
+            "refresh": str(refresh)
+        }
+
+        return Response(response_data, status=status.HTTP_201_CREATED)
+
 
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
     permission_classes = [AllowAny]
 
     def post(self, request):
-        username = request.data.get('username')
-        password = request.data.get('password')
+        identifier = request.data.get("email") or request.data.get("username")
+        password = request.data.get("password")
 
-        user = authenticate(username=username, password=password)
-        if user is not None:
-            refresh = RefreshToken.for_user(user)
-            return Response({
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-                'user': UserSerializer(user).data
-            })
-        return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+        if not identifier or not password:
+            return Response({"detail": "Email/Username and password required"}, status=400)
+
+        # Try login by email
+        try:
+            user_obj = User.objects.get(email=identifier)
+            username = user_obj.username
+        except User.DoesNotExist:
+            # Try login by username
+            username = identifier
+
+        user = authenticate(request, username=username, password=password)
+
+        if not user:
+            return Response({"detail": "Invalid credentials"}, status=401)
+
+        refresh = RefreshToken.for_user(user)
+
+        return Response({
+            "user": UserSerializer(user).data,
+            "access": str(refresh.access_token),
+            "refresh": str(refresh)
+        }, status=200)
     
 
     # Explanation
