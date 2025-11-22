@@ -10,9 +10,17 @@ from .analysis import analyze_document_text
 from .summarizer import generate_summary
 from .permissions import IsAdmin, IsLawyer
 from notifications.utils import create_notification, log_activity
+from django.utils import timezone
 import os
 
 # Create your views here.
+
+class DocumentListView(generics.ListAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = DocumentSerializer
+
+    def get_queryset(self):
+        return Document.objects.filter(user=self.request.user).order_by('-uploaded_at')
 
 class DocumentUploadView(APIView):
     permission_classes = [permissions.IsAuthenticated] #Protected route, only for logged-in users.
@@ -39,7 +47,8 @@ class DocumentUploadView(APIView):
             user=request.user,
             title=title or file.name,
             file=file,
-            file_type=file_type
+            file_type=file_type,
+            status='pending'
         )
 
         create_notification(request.user, f"Document '{document.title}' uploaded successfully.")
@@ -56,7 +65,7 @@ class DocumentUploadView(APIView):
         elif file_type == 'text':
             extracted_text = extract_text_from_txt(file_path)
 
-        document.extracted_text = extracted_text
+        document.extracted_text = extracted_text or ""
         document.save()
 
         serializer = DocumentSerializer(document)
@@ -97,14 +106,28 @@ class DocumentAnalysisView(APIView):
             return Response({"error": "No extracted text available for analysis"}, status=status.HTTP_400_BAD_REQUEST)
         
         results = analyze_document_text(document.extracted_text)
-        document.clauses_found = results['clauses_found']
-        document.risk_score = results['risk_score']
+
+        # results is expected to be { clauses_found: {...}, risk_score: "Low|Medium|High" }
+        document.clauses_found = results.get('clauses_found', document.clauses_found or {})
+        document.risk_score = results.get('risk_score', document.risk_score)
+        document.analyzed_at = timezone.now()
+        document.status = 'analyzed'
+
+        # Optionally generate a brief summary here (or keep report separate)
+        # Only generate summary if it's not already present
+        if not document.summary:
+            try:
+                document.summary = generate_summary(document.extracted_text)
+            except Exception:
+                # summarizer might be slow or fail — don't block analysis
+                document.summary = document.summary or ""
+
         document.save()
 
         create_notification(request.user, f"Document '{document.title}' analyzed. Risk score: {document.risk_score}")
         log_activity(request.user, "Analyzed document", {"document_id": document.id, "risk": document.risk_score})
 
-        serializer = DocumentSerializer(document)
+        serializer = DocumentSerializer(document, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
     
 # Summary for phase 5:
@@ -133,7 +156,7 @@ class DocumentReportView(APIView):
         create_notification(request.user, f"Report generated for '{document.title}'")
         log_activity(request.user, "Generated report", {"document_id": document.id})
 
-        serializer = DocumentSerializer(document)
+        serializer = DocumentSerializer(document, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
     
 # Summary for phase 6:
@@ -142,6 +165,33 @@ class DocumentReportView(APIView):
     # Runs the summarization model.
     # Saves the summary to the document and returns updated data.
 # Next we add this route to urls.py.
+
+class DocumentDeleteView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, pk):
+        try:
+            document = Document.objects.get(pk=pk, user=request.user)
+        except Document.DoesNotExist:
+            return Response(
+                {"error": "Document not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Delete file from storage
+        if document.file and document.file.path:
+            if os.path.exists(document.file.path):
+                os.remove(document.file.path)
+
+        document.delete()
+
+        create_notification(request.user, f"Document '{document.title}' deleted successfully.")
+        log_activity(request.user, "Deleted document", {"document_id": pk})
+
+        return Response(
+            {"message": "Document deleted successfully"},
+            status=status.HTTP_204_NO_CONTENT
+        )
 
 
 class IndividualDashboardView(generics.ListAPIView):
