@@ -1,4 +1,5 @@
 from django.shortcuts import render
+from django.db import models
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -56,6 +57,26 @@ class ActivityLogListView(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        if user.role == 'admin':
-            return ActivityLog.objects.all().order_by('-timestamp')
-        return ActivityLog.objects.filter(user=user).order_by('-timestamp')
+        qs = ActivityLog.objects.all() if user.role == "admin" else ActivityLog.objects.filter(user=user)
+
+        # Read ?type= from query params
+        filter_type = self.request.query_params.get("type", None)
+
+        if filter_type and filter_type != "all":
+            filter_type = filter_type.lower()
+
+            if filter_type == "upload":
+                qs = qs.filter(action__icontains="upload")
+            elif filter_type == "analysis":
+                qs = qs.filter(action__icontains="analy")
+            elif filter_type == "report":
+                qs = qs.filter(action__icontains="report")
+            elif filter_type == "download":
+                qs = qs.filter(action__icontains="download")
+            elif filter_type == "auth":
+                qs = qs.filter(
+                    models.Q(action__icontains="login")
+                    | models.Q(action__icontains="logout")
+                )
+
+        return qs.order_by("-timestamp")
