@@ -54,6 +54,11 @@ class LoginView(generics.GenericAPIView):
 
         if not user:
             return Response({"detail": "Invalid credentials"}, status=401)
+        
+        # Superusers are always admins
+        if user.is_superuser:
+            user.role = "admin"
+            user.save()
 
         refresh = RefreshToken.for_user(user)
 
