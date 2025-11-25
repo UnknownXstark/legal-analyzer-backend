@@ -11,6 +11,7 @@ from .summarizer import generate_summary
 from .permissions import IsAdmin, IsLawyer
 from notifications.utils import create_notification, log_activity
 from django.utils import timezone
+from django.db.models import Count, Q, Max
 import os
 
 # Create your views here.
@@ -229,3 +230,83 @@ class AdminDashboardView(generics.ListAPIView):
     # lawyerDashboardView: for now, returns all
     # AdminDashboardView: unrestricted view (shows all uploads)
 # Next we add this route to urls.py.
+
+
+class LawyerDashboardAnalyticsView(APIView):
+    permission_classes = [IsAuthenticated, IsLawyer]
+
+    def get(self, request):
+        # All documents in system for lawyers
+        documents = Document.objects.all()
+
+        # ------STATS------
+        total_clients = (
+            Document.objects.values('user')
+            .distinct()
+            .count()
+        )
+
+
+        documents_reviewed = documents.filter(status='analyzed').count()
+        pending_reviews = documents.filter(status='pending').count()
+        high_risk_cases = documents.filter(risk_score='High').count()
+
+        # ------RISK DISTRIBUTION------
+        risk_low = documents.filter(risk_score='Low').count()
+        risk_medium = documents.filter(risk_score='Medium').count()
+        risk_high = documents.filter(risk_score='High').count()
+
+        # ------CLIENT OVERVIEW------
+        clients_overview = []
+        clients = (
+            Document.objects.values('user__id', 'user__username')
+            .annotate(
+                docs=Count("id"),
+                low=Count("id", filter=Q(risk_score="Low")),
+                medium=Count("id", filter=Q(risk_score="Medium")),
+                high=Count("id", filter=Q(risk_score="High")),
+                last_active=Max("uploaded_at")
+            )
+        )
+
+        for c in clients:
+            # Compute avg risk category
+            total = c["low"] + c["medium"] + c["high"]
+            if total == 0:
+                avg = "Unknown"
+            else:
+                # weighted risk: High > Medium > Low
+                score = (c["low"] * 1) + (c["medium"] * 2) + (c["high"] * 3)
+                avg_value = score / total
+
+                if avg_value <= 1.5:
+                    avg = "Low"
+                elif avg_value <= 2.3:
+                    avg = "Medium"
+                else:
+                    avg = "High"
+
+            clients_overview.append({
+                "id": c["user__id"],
+                "name": c["user__username"],
+                "docs": c["docs"],
+                "avgRisk": avg,
+                "lastActive": c["last_active"].strftime("%Y-%m-%d") if c["last_active"] else ""
+            })
+
+        response = {
+            "stats": {
+                "totalClients": total_clients,
+                "documentsReviewed": documents_reviewed,
+                "pendingReviews": pending_reviews,
+                "highRiskCases": high_risk_cases,
+            },
+            "riskDistribution": {
+                "low": risk_low,
+                "medium": risk_medium,
+                "high": risk_high,
+            },
+            "clients": clients_overview,
+        }
+
+        return Response(response, status=200)
