@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import DocumentListView, DocumentUploadView, DocumentDetailView, DocumentAnalysisView, DocumentReportView, DocumentDeleteView, IndividualDashboardView, AdminDashboardView, LawyerDashboardView, LawyerDashboardAnalyticsView
+from .views import DocumentListView, DocumentUploadView, DocumentDetailView, DocumentAnalysisView, DocumentReportView, DocumentDeleteView, IndividualDashboardView, AdminDashboardView, LawyerDashboardView, LawyerDashboardAnalyticsView, AdminDashboardAnalyticsView
 
 urlpatterns = [
     path('', DocumentListView.as_view(), name='document-list'),
@@ -14,6 +14,7 @@ urlpatterns = [
     path('dashboard/lawyer/', LawyerDashboardView.as_view(), name='lawyer-dashboard'),
     path('dashboard/admin/', AdminDashboardView.as_view(), name='admin-dashboard'),
     path("lawyer/analytics/", LawyerDashboardAnalyticsView.as_view()),
+     path("admin/analytics/", AdminDashboardAnalyticsView.as_view(), name="admin-analytics"),
 ]
 
 

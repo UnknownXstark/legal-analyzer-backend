@@ -12,6 +12,8 @@ from .permissions import IsAdmin, IsLawyer
 from notifications.utils import create_notification, log_activity
 from django.utils import timezone
 from django.db.models import Count, Q, Max
+from django.contrib.auth import get_user_model
+from notifications.models import ActivityLog
 import os
 
 # Create your views here.
@@ -307,6 +309,64 @@ class LawyerDashboardAnalyticsView(APIView):
                 "high": risk_high,
             },
             "clients": clients_overview,
+        }
+
+        return Response(response, status=200)
+    
+
+User = get_user_model()
+
+class AdminDashboardAnalyticsView(APIView):
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def get(self, request):
+        # ------STATS------
+        total_users = get_user_model().objects.count()
+        documents_analyzed = Document.objects.filter(status="analyzed").count()
+        active_lawyers = get_user_model().objects.filter(role="lawyer").count()
+
+        # Example uptime (could be improved later)
+        system_uptime = "99.9%"
+
+        # ------ACTIVITY LOG------
+        activity_logs = ActivityLog.objects.select_related("user").order_by("-timestamp")[:10]
+
+        activity_logs_data = [
+            {
+                "id": a.id,
+                "action": a.action,
+                "user": a.user.username if a.user else "Unknown",
+                "type": "system",  # Default classification
+                "time": a.timestamp.strftime("%Y-%m-%d %H:%M"),
+            }
+            for a in activity_logs
+        ]
+
+        # ------RECENT USERS------
+        recent_users = (
+            get_user_model().objects.order_by("-date_joined")[:10]
+        )
+
+        recent_users_data = [
+            {
+                "id": u.id,
+                "name": u.username,
+                "email": u.email,
+                "role": u.role,
+                "joined": u.date_joined.strftime("%Y-%m-%d"),
+            }
+            for u in recent_users
+        ]
+
+        response = {
+            "stats": {
+                "totalUsers": total_users,
+                "documentsAnalyzed": documents_analyzed,
+                "activeLawyers": active_lawyers,
+                "systemUptime": system_uptime,
+            },
+            "activityLog": activity_logs_data,
+            "recentUsers": recent_users_data,
         }
 
         return Response(response, status=200)
