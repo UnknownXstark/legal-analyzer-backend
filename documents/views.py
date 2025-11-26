@@ -14,6 +14,7 @@ from django.utils import timezone
 from django.db.models import Count, Q, Max
 from django.contrib.auth import get_user_model
 from notifications.models import ActivityLog
+from django.http import FileResponse
 import os
 
 # Create your views here.
@@ -168,6 +169,28 @@ class DocumentReportView(APIView):
     # Runs the summarization model.
     # Saves the summary to the document and returns updated data.
 # Next we add this route to urls.py.
+
+
+class DocumentDownloadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            document = Document.objects.get(pk=pk, user=request.user)
+        except Document.DoesNotExist:
+            return Response({"error": "Document not found"}, status=404)
+
+        file_path = document.file.path
+
+        # 🔥 Log + notify
+        create_notification(request.user, f"Downloaded '{document.title}'")
+        log_activity(request.user, "Downloaded document", {"document_id": document.id})
+
+        # Serve file
+        return FileResponse(open(file_path, "rb"), as_attachment=True, filename=document.title)
+
+
+
 
 class DocumentDeleteView(APIView):
     permission_classes = [permissions.IsAuthenticated]

@@ -5,6 +5,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import RegisterSerializer, UserSerializer, LoginSerializer
+from notifications.utils import create_notification, log_activity
+
 
 # Create your views here.
 User = get_user_model()
@@ -59,6 +61,9 @@ class LoginView(generics.GenericAPIView):
         if user.is_superuser:
             user.role = "admin"
             user.save()
+        
+        create_notification(user, "Login successful")
+        log_activity(user, "User logged in", {"email": user.email})
 
         refresh = RefreshToken.for_user(user)
 
@@ -76,3 +81,14 @@ class LoginView(generics.GenericAPIView):
         # refresh → used to get new tokens when the old one expires
     # The user’s info is sent back as confirmation.
     # Then we create the routes in users/urls.py to link to these views.
+
+
+class LogoutView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        create_notification(user, "Logout successful")
+        log_activity(user, "User logged out", None)
+        
+        return Response({"detail": "Logged out successfully"}, status=200)
