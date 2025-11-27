@@ -146,42 +146,22 @@ class DocumentReportView(APIView):
 
     def post(self, request, pk):
         try:
-            # Allow: owner, lawyer, admin
-            user = request.user
-
-            if user.role in ["lawyer", "admin"]:
-                document = Document.objects.get(pk=pk)
-            else:
-                document = Document.objects.get(pk=pk, user=user)
-
+            document = Document.objects.get(pk=pk, user=request.user)
         except Document.DoesNotExist:
             return Response({"error": "Document not found"}, status=status.HTTP_404_NOT_FOUND)
-
+        
         if not document.extracted_text:
-            return Response({"error": "No extracted text available for summary"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Generate summary
+            return Response({"error": "No summary available for this document"}, status=status.HTTP_400_BAD_REQUEST)
+        
         summary = generate_summary(document.extracted_text)
         document.summary = summary
         document.save()
 
-        # Notifications & Logging
-        create_notification(user, f"Report generated for '{document.title}'")
-        log_activity(
-            user,
-            "Generated report",
-            {
-                "document_id": document.id,
-                "title": document.title,
-                "by": user.username,
-            }
-        )
-
-        print("REPORT VIEW HIT")
+        create_notification(request.user, f"Report generated for '{document.title}'")
+        log_activity(request.user, "Generated report", {"document_id": document.id})
 
         serializer = DocumentSerializer(document, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
-
     
 # Summary for phase 6:
     # User triggers '/api/documents/<id>/report/.'
@@ -190,6 +170,8 @@ class DocumentReportView(APIView):
     # Saves the summary to the document and returns updated data.
 # Next we add this route to urls.py.
 
+
+from django.http import HttpResponse
 
 class DocumentDownloadView(APIView):
     permission_classes = [IsAuthenticated]
@@ -200,14 +182,32 @@ class DocumentDownloadView(APIView):
         except Document.DoesNotExist:
             return Response({"error": "Document not found"}, status=404)
 
-        file_path = document.file.path
+        # --- Build the text report ---
+        report_text = f"""
+DOCUMENT REPORT
+======================
+Title: {document.title}
+Generated: {document.analyzed_at}
+Risk Level: {document.risk_score}
 
-        # 🔥 Log + notify
-        create_notification(request.user, f"Downloaded '{document.title}'")
-        log_activity(request.user, "Downloaded document", {"document_id": document.id})
+SUMMARY:
+{document.summary}
 
-        # Serve file
-        return FileResponse(open(file_path, "rb"), as_attachment=True, filename=document.title)
+CLAUSES:
+{document.clauses_found}
+""".strip()
+
+        # Log & notify
+        create_notification(request.user, f"Downloaded report for '{document.title}'")
+        log_activity(request.user, "Downloaded report", {"document_id": document.id})
+
+        # Return as text file
+        response = HttpResponse(report_text, content_type='text/plain')
+        filename = document.title.replace(" ", "_") + "_report.txt"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        return response
+
 
 
 
