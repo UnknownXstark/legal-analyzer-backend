@@ -146,22 +146,42 @@ class DocumentReportView(APIView):
 
     def post(self, request, pk):
         try:
-            document = Document.objects.get(pk=pk, user=request.user)
+            # Allow: owner, lawyer, admin
+            user = request.user
+
+            if user.role in ["lawyer", "admin"]:
+                document = Document.objects.get(pk=pk)
+            else:
+                document = Document.objects.get(pk=pk, user=user)
+
         except Document.DoesNotExist:
             return Response({"error": "Document not found"}, status=status.HTTP_404_NOT_FOUND)
-        
+
         if not document.extracted_text:
-            return Response({"error": "No summary available for this document"}, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response({"error": "No extracted text available for summary"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Generate summary
         summary = generate_summary(document.extracted_text)
         document.summary = summary
         document.save()
 
-        create_notification(request.user, f"Report generated for '{document.title}'")
-        log_activity(request.user, "Generated report", {"document_id": document.id})
+        # Notifications & Logging
+        create_notification(user, f"Report generated for '{document.title}'")
+        log_activity(
+            user,
+            "Generated report",
+            {
+                "document_id": document.id,
+                "title": document.title,
+                "by": user.username,
+            }
+        )
+
+        print("REPORT VIEW HIT")
 
         serializer = DocumentSerializer(document, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
+
     
 # Summary for phase 6:
     # User triggers '/api/documents/<id>/report/.'
