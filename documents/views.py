@@ -130,28 +130,50 @@ class DocumentAnalysisView(APIView):
         
         results = analyze_document_text(document.extracted_text)
 
-        # results is expected to be { clauses_found: {...}, risk_score: "Low|Medium|High" }
-        document.clauses_found = results.get('clauses_found', document.clauses_found or {})
-        document.risk_score = results.get('risk_score', document.risk_score)
+        # Apply AI updates
+        document.clauses_found = results.get("clauses_found", document.clauses_found or {})
+        document.risk_score = results.get("risk_score", document.risk_score)
         document.analyzed_at = timezone.now()
-        document.status = 'analyzed'
+        document.status = "analyzed"
 
-        # Optionally generate a brief summary here (or keep report separate)
-        # Only generate summary if it's not already present
+        # Generate summary only if not already present
         if not document.summary:
             try:
                 document.summary = generate_summary(document.extracted_text)
             except Exception:
-                # summarizer might be slow or fail — don't block analysis
                 document.summary = document.summary or ""
 
+        # -------------------------------------------
+        # 📌 CREATE VERSION SNAPSHOT BEFORE SAVING
+        # -------------------------------------------
+        last_version = DocumentVersion.objects.filter(
+            document=document
+        ).order_by("-version_number").first()
+
+        next_version = (last_version.version_number + 1) if last_version else 1
+
+        DocumentVersion.objects.create(
+            document=document,
+            version_number=next_version,
+            content=document.extracted_text or ""
+        )
+        # -------------------------------------------
+
+        # Final save
         document.save()
 
-        create_notification(request.user, f"Document '{document.title}' analyzed. Risk score: {document.risk_score}")
-        log_activity(request.user, "Analyzed document", {"document_id": document.id, "risk": document.risk_score})
+        create_notification(
+            request.user,
+            f"Document '{document.title}' analyzed. Risk score: {document.risk_score}"
+        )
+        log_activity(request.user, "Analyzed document", {
+            "document_id": document.id,
+            "risk": document.risk_score
+        })
 
-        serializer = DocumentSerializer(document, context={'request': request})
+        serializer = DocumentSerializer(document, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
+
     
 # Summary for phase 5:
     # Only logged-in users can analyze their own documents.

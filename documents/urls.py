@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import DocumentListView, DocumentUploadView, DocumentDetailView, DocumentAnalysisView, DocumentReportView, DocumentDeleteView, IndividualDashboardView, AdminDashboardView, LawyerDashboardView, LawyerDashboardAnalyticsView, AdminDashboardAnalyticsView, DocumentDownloadView
+from .views import DocumentListView, DocumentUploadView, DocumentDetailView, DocumentAnalysisView, DocumentReportView, DocumentDeleteView, IndividualDashboardView, AdminDashboardView, LawyerDashboardView, LawyerDashboardAnalyticsView, AdminDashboardAnalyticsView, DocumentDownloadView, DocumentCommentsView, DocumentCommentDeleteView, DocumentVersionListView, DocumentVersionDetailView
 
 urlpatterns = [
     path('', DocumentListView.as_view(), name='document-list'),
@@ -9,6 +9,10 @@ urlpatterns = [
     path('<int:pk>/report/', DocumentReportView.as_view(), name='document-report'),
     path("<int:pk>/download/", DocumentDownloadView.as_view(), name="document-download"),
     path('<int:pk>/delete/', DocumentDeleteView.as_view(), name='document-delete'),
+     path('<int:pk>/comments/', DocumentCommentsView.as_view(), name='document-comments'),
+    path('comments/<int:comment_id>/', DocumentCommentDeleteView.as_view(), name='document-comment-delete'),
+    path('<int:pk>/versions/', DocumentVersionListView.as_view(), name='document-versions-list'),
+    path('versions/<int:version_id>/', DocumentVersionDetailView.as_view(), name='document-version-detail'),
 
     # Dashboards
     path('dashboard/individual/', IndividualDashboardView.as_view(), name='individual-dashboard'),
