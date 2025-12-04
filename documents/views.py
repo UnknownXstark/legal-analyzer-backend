@@ -3,19 +3,21 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions, generics
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import PermissionDenied, NotFound
 from users.models import ClientAssignment
-from .models import Document
-from .serializers import DocumentSerializer
+from .models import Document, DocumentComment, DocumentVersion
+from .serializers import DocumentSerializer, CommentSerializer, CreateCommentSerializer, DocumentVersionListSerializer, DocumentVersionDetailSerializer
 from .utils import extract_text_from_pdf, extract_text_from_word, extract_text_from_txt
 from .analysis import analyze_document_text
 from .summarizer import generate_summary
-from .permissions import IsAdmin, IsLawyer
+from .permissions import IsAdmin, IsLawyer, IsDocumentParticipant
 from notifications.utils import create_notification, log_activity
 from django.utils import timezone
 from django.db.models import Count, Q, Max
 from django.contrib.auth import get_user_model
 from notifications.models import ActivityLog
 from django.http import FileResponse
+from django.shortcuts import get_object_or_404
 import os
 
 # Create your views here.
@@ -441,3 +443,92 @@ class AdminDashboardAnalyticsView(APIView):
         }
 
         return Response(response, status=200)
+
+# COMMENTS
+
+class DocumentCommentsView(generics.ListCreateAPIView):
+    """
+    GET: list comments for a document (participants only)
+    POST: create a new comment (participants only)
+    URL: /api/documents/<pk>/comments/
+    """
+    serializer_class = CommentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_document(self):
+        doc = get_object_or_404(Document, pk=self.kwargs.get("pk"))
+        # Check permission manually (object permission)
+        perm = IsDocumentParticipant()
+        if not perm.has_object_permission(self.request, self, doc):
+            raise PermissionDenied("You do not have access to this document")
+        return doc
+
+    def get_queryset(self):
+        doc = self.get_document()
+        return DocumentComment.objects.filter(document=doc).order_by("created_at")
+
+    def post(self, request, *args, **kwargs):
+        doc = self.get_document()
+        serializer = CreateCommentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        comment = DocumentComment.objects.create(
+            document=doc,
+            user=request.user,
+            text=serializer.validated_data["text"]
+        )
+        # Optionally: create_notification, log_activity
+        return Response(CommentSerializer(comment).data, status=status.HTTP_201_CREATED)
+
+
+class DocumentCommentDeleteView(generics.DestroyAPIView):
+    """
+    DELETE: delete a comment by id
+    Only comment owner or admin can delete
+    URL: /api/documents/comments/<int:comment_id>/
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, comment_id, *args, **kwargs):
+        comment = get_object_or_404(DocumentComment, id=comment_id)
+
+        # Only the author or admin can delete
+        if comment.user != request.user and not (request.user.role == "admin" or request.user.is_superuser):
+            raise PermissionDenied("Not allowed to delete this comment")
+
+        comment.delete()
+        return Response({"message": "Comment deleted"}, status=status.HTTP_204_NO_CONTENT)
+
+
+# VERSIONS
+
+class DocumentVersionListView(generics.ListAPIView):
+    """
+    GET /api/documents/<pk>/versions/  -> list versions metadata
+    Participants only.
+    """
+    serializer_class = DocumentVersionListSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        doc = get_object_or_404(Document, pk=self.kwargs.get("pk"))
+        perm = IsDocumentParticipant()
+        if not perm.has_object_permission(self.request, self, doc):
+            raise PermissionDenied("You do not have access to this document")
+        return DocumentVersion.objects.filter(document=doc).order_by("-version_number")
+
+
+class DocumentVersionDetailView(generics.RetrieveAPIView):
+    """
+    GET /api/documents/versions/<int:version_id>/
+    Returns the version content (participants only)
+    """
+    serializer_class = DocumentVersionDetailSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        version = get_object_or_404(DocumentVersion, id=self.kwargs.get("version_id"))
+        doc = version.document
+        perm = IsDocumentParticipant()
+        if not perm.has_object_permission(self.request, self, doc):
+            raise PermissionDenied("You do not have access to this version")
+        return version

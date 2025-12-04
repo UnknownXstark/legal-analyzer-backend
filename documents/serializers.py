@@ -1,17 +1,6 @@
-# from rest_framework import serializers
-# from .models import Document
-
-# class DocumentSerializer(serializers.ModelSerializer):
-#     class Meta:
-#        model = Document
-#        fields = ['id', 'user', 'title', 'file', 'file_type', 'uploaded_at', 'extracted_text', 'summary']
-#        read_only_fields = ['id', 'uploaded_at', 'extracted_text', 'file_type', 'summary']
-# # Summary for phase 3:
-#     # Serializers convert Document model instances to JSON and vice versa for API interactions.
-#     # From here we move to the views to handle upload and retrieval logic.
-
 from rest_framework import serializers
-from .models import Document
+from .models import Document, DocumentComment, DocumentVersion
+from django.contrib.auth import get_user_model
 
 class DocumentSerializer(serializers.ModelSerializer):
     file = serializers.SerializerMethodField()
@@ -44,3 +33,41 @@ class DocumentSerializer(serializers.ModelSerializer):
         except Exception:
             pass
         return str(obj.file)
+    
+
+
+User = get_user_model()
+
+class CommentSerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = DocumentComment
+        fields = ["id", "document", "user", "text", "created_at"]
+        read_only_fields = ["id", "user", "created_at", "document"]
+
+    def get_user(self, obj):
+        return {
+            "id": obj.user.id,
+            "username": obj.user.username,
+            "email": obj.user.email,
+            "role": obj.user.role
+        }
+
+
+class CreateCommentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DocumentComment
+        fields = ["text"]
+
+
+class DocumentVersionListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DocumentVersion
+        fields = ["id", "version_number", "created_at"]
+
+
+class DocumentVersionDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DocumentVersion
+        fields = ["id", "version_number", "content", "created_at"]
