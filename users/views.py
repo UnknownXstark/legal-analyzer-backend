@@ -6,15 +6,20 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView  # <= needed
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
+from .models import ClientAssignment, User
 from .serializers import (
     RegisterSerializer,
     UserSerializer,
     LoginSerializer,
     PasswordResetRequestSerializer,
     PasswordResetConfirmSerializer,
+    ClientAssignmentSerializer,
+    CreateAssignmentSerializer,
 )
 from notifications.utils import create_notification, log_activity
 from django.core.mail import send_mail
+from .permissions import IsLawyer
+from rest_framework.exceptions import NotFound
 
 # Utilities for password reset
 from django.contrib.auth.tokens import PasswordResetTokenGenerator  # <= needed
@@ -161,3 +166,69 @@ class PasswordResetConfirmView(APIView):
         user.save()
 
         return Response({"message": "Password reset successful"}, status=200)
+
+
+class AssignClientView(generics.GenericAPIView):
+    serializer_class = CreateAssignmentSerializer
+    permission_classes = [IsAuthenticated, IsLawyer]
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        client = User.objects.get(id=serializer.validated_data["client_id"])
+
+        assignment = ClientAssignment.objects.create(
+            lawyer=request.user,
+            client=client,
+            status="pending"
+        )
+
+        return Response(ClientAssignmentSerializer(assignment).data, status=201)
+
+
+class ClientRespondAssignmentView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        assignment_id = request.data.get("assignment_id")
+        action = request.data.get("action")
+
+        if action not in ["accept", "reject"]:
+            return Response({"error": "Invalid action"}, status=400)
+
+        try:
+            assignment = ClientAssignment.objects.get(id=assignment_id)
+        except ClientAssignment.DoesNotExist:
+            return Response({"error": "Assignment not found"}, status=404)
+
+        # Only the client can respond
+        if assignment.client != request.user:
+            return Response({"error": "Not allowed"}, status=403)
+
+        assignment.status = "accepted" if action == "accept" else "rejected"
+        assignment.save()
+
+        return Response({"message": f"Assignment {action}ed"})
+
+
+class LawyerClientsListView(generics.ListAPIView):
+    serializer_class = ClientAssignmentSerializer
+    permission_classes = [IsAuthenticated, IsLawyer]
+
+    def get_queryset(self):
+        return ClientAssignment.objects.filter(
+            lawyer=self.request.user,
+            status="accepted"
+        )
+
+
+class ClientLawyerView(generics.RetrieveAPIView):
+    serializer_class = ClientAssignmentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        try:
+            return self.request.user.lawyer_assignment
+        except ClientAssignment.DoesNotExist:
+            raise NotFound("Client has no assigned lawyer")

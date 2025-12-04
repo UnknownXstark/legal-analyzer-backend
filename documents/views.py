@@ -3,6 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions, generics
 from rest_framework.permissions import IsAuthenticated
+from users.models import ClientAssignment
 from .models import Document
 from .serializers import DocumentSerializer
 from .utils import extract_text_from_pdf, extract_text_from_word, extract_text_from_txt
@@ -24,7 +25,23 @@ class DocumentListView(generics.ListAPIView):
     serializer_class = DocumentSerializer
 
     def get_queryset(self):
-        return Document.objects.filter(user=self.request.user).order_by('-uploaded_at')
+        user = self.request.user
+
+        # 🧑‍⚖️ LAWYER — show only accepted client documents
+        if user.role == "lawyer":
+            client_ids = ClientAssignment.objects.filter(
+                lawyer=user,
+                status="accepted"
+            ).values_list("client_id", flat=True)
+
+            return Document.objects.filter(
+                user_id__in=client_ids
+            ).order_by("-uploaded_at")
+
+        # 👤 INDIVIDUAL — show only own documents
+        return Document.objects.filter(
+            user=user
+        ).order_by("-uploaded_at")
 
 class DocumentUploadView(APIView):
     permission_classes = [permissions.IsAuthenticated] #Protected route, only for logged-in users.
@@ -254,10 +271,15 @@ class LawyerDashboardView(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        if user.role != 'lawyer':
-            return Document.objects.none()
-        # For now, show all documents; later link to assigned clients
-        return Document.objects.all()
+
+        client_ids = ClientAssignment.objects.filter(
+            lawyer=user,
+            status="accepted"
+        ).values_list("client_id", flat=True)
+
+        return Document.objects.filter(
+            user_id__in=client_ids
+        ).order_by("-uploaded_at")
     
 
 class AdminDashboardView(generics.ListAPIView):
@@ -267,7 +289,7 @@ class AdminDashboardView(generics.ListAPIView):
     def get_queryset(self):
         user = self.request.user
         if user.role != 'admin':
-            return Document.object.none()
+            return Document.objects.none()
         return Document.objects.all()
     
 # Summary for phase 7:
@@ -281,16 +303,21 @@ class LawyerDashboardAnalyticsView(APIView):
     permission_classes = [IsAuthenticated, IsLawyer]
 
     def get(self, request):
-        # All documents in system for lawyers
-        documents = Document.objects.all()
+        lawyer = request.user
 
-        # ------STATS------
-        total_clients = (
-            Document.objects.values('user')
-            .distinct()
-            .count()
+        # Get accepted clients
+        client_ids = ClientAssignment.objects.filter(
+            lawyer=lawyer,
+            status="accepted"
+        ).values_list("client_id", flat=True)
+
+        # Only documents belonging to accepted clients
+        documents = Document.objects.filter(
+            user_id__in=client_ids
         )
 
+        # ------STATS------
+        total_clients = len(client_ids)
 
         documents_reviewed = documents.filter(status='analyzed').count()
         pending_reviews = documents.filter(status='pending').count()
@@ -304,7 +331,8 @@ class LawyerDashboardAnalyticsView(APIView):
         # ------CLIENT OVERVIEW------
         clients_overview = []
         clients = (
-            Document.objects.values('user__id', 'user__username')
+            Document.objects.filter(user_id__in=client_ids)
+            .values('user__id', 'user__username')
             .annotate(
                 docs=Count("id"),
                 low=Count("id", filter=Q(risk_score="Low")),
