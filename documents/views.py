@@ -19,6 +19,7 @@ from notifications.models import ActivityLog
 from ml_models.nlp_pipeline import process_document
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
+from payments.models import Subscription as PaymentSubscription
 import os
 
 # Create your views here.
@@ -121,6 +122,9 @@ class DocumentAnalysisView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, pk):
+        # ----------------------------
+        # 1. Find document
+        # ----------------------------
         try:
             document = Document.objects.get(pk=pk, user=request.user)
         except Document.DoesNotExist:
@@ -128,12 +132,36 @@ class DocumentAnalysisView(APIView):
         
         if not document.extracted_text:
             return Response({"error": "No extracted text available for analysis"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # --- call the real NLP pipeline ---
+
+        # ----------------------------
+        # 2. SUBSCRIPTION ENFORCEMENT
+        # ----------------------------
+        try:
+            sub = request.user.subscription
+        except Exception:
+            sub = None
+
+        if sub:
+            # Reset monthly if needed
+            sub.reset_if_new_cycle()
+
+            # FREE PLAN → max 3 analyses per month
+            if sub.plan == "free":
+                if sub.analysis_count >= 3:
+                    return Response(
+                        {
+                            "error": "Upgrade required",
+                            "remaining": 0
+                        },
+                        status=402  # Payment Required
+                    )
+
+        # ----------------------------
+        # 3. Perform actual analysis
+        # ----------------------------
         try:
             results = process_document(document.extracted_text, generate_summary_flag=True)
-        except Exception as e:
-            # Log this server-side if you have logging
+        except Exception:
             results = {
                 "clauses_found": {},
                 "entities": [],
@@ -143,8 +171,6 @@ class DocumentAnalysisView(APIView):
 
         document.clauses_found = results.get('clauses_found', document.clauses_found or {})
         document.risk_score = results.get('risk_score', document.risk_score)
-        # store entities as JSON if you want (add field on model if necessary)
-        # optional: document.entities = results.get('entities', [])
         document.analyzed_at = timezone.now()
         document.status = 'analyzed'
 
@@ -154,10 +180,12 @@ class DocumentAnalysisView(APIView):
             except Exception:
                 document.summary = document.summary or ""
 
-        # Create DocumentVersion snapshot (if not done previously)
-        from .models import DocumentVersion
+        # ----------------------------
+        # 4. Create new version snapshot
+        # ----------------------------
         last_version = DocumentVersion.objects.filter(document=document).order_by("-version_number").first()
         next_version = (last_version.version_number + 1) if last_version else 1
+
         DocumentVersion.objects.create(
             document=document,
             version_number=next_version,
@@ -166,11 +194,22 @@ class DocumentAnalysisView(APIView):
 
         document.save()
 
+        # ----------------------------
+        # 5. INCREMENT USAGE (only for free plan)
+        # ----------------------------
+        if sub and sub.plan == "free":
+            sub.analysis_count += 1
+            sub.save()
+
+        # ----------------------------
+        # 6. Notifications/Logging + return
+        # ----------------------------
         create_notification(request.user, f"Document '{document.title}' analyzed. Risk score: {document.risk_score}")
         log_activity(request.user, "Analyzed document", {"document_id": document.id, "risk": document.risk_score})
 
         serializer = DocumentSerializer(document, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
+
 
     
 # Summary for phase 5:

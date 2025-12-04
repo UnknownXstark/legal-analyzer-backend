@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'analysis',
     'risks',
     'notifications',
+    'payments',
 ]
 
 MIDDLEWARE = [
