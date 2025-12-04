@@ -1,7 +1,14 @@
+# from rest_framework import serializers
+# from django.contrib.auth import get_user_model
+# from django.contrib.auth.hashers import make_password
+# from rest_framework_simplejwt.tokens import RefreshToken
+# from django.contrib.auth.tokens import PasswordResetTokenGenerator
+# from django.utils.encoding import force_bytes, force_str
+# from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
-from rest_framework_simplejwt.tokens import RefreshToken
 
 User = get_user_model()
 
@@ -35,3 +42,12 @@ class LoginSerializer(serializers.Serializer):
 
     # UserSerializer: Returns clean user info in JSON format.
 # Then in views.py, we use these serializers to handle registration and login logic.
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    uidb64 = serializers.CharField()
+    token = serializers.CharField()
+    password = serializers.CharField(write_only=True)
