@@ -16,6 +16,7 @@ from django.utils import timezone
 from django.db.models import Count, Q, Max
 from django.contrib.auth import get_user_model
 from notifications.models import ActivityLog
+from ml_models.nlp_pipeline import process_document
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 import os
@@ -128,50 +129,47 @@ class DocumentAnalysisView(APIView):
         if not document.extracted_text:
             return Response({"error": "No extracted text available for analysis"}, status=status.HTTP_400_BAD_REQUEST)
         
-        results = analyze_document_text(document.extracted_text)
+        # --- call the real NLP pipeline ---
+        try:
+            results = process_document(document.extracted_text, generate_summary_flag=True)
+        except Exception as e:
+            # Log this server-side if you have logging
+            results = {
+                "clauses_found": {},
+                "entities": [],
+                "summary": "",
+                "risk_score": "Unknown"
+            }
 
-        # Apply AI updates
-        document.clauses_found = results.get("clauses_found", document.clauses_found or {})
-        document.risk_score = results.get("risk_score", document.risk_score)
+        document.clauses_found = results.get('clauses_found', document.clauses_found or {})
+        document.risk_score = results.get('risk_score', document.risk_score)
+        # store entities as JSON if you want (add field on model if necessary)
+        # optional: document.entities = results.get('entities', [])
         document.analyzed_at = timezone.now()
-        document.status = "analyzed"
+        document.status = 'analyzed'
 
-        # Generate summary only if not already present
         if not document.summary:
             try:
-                document.summary = generate_summary(document.extracted_text)
+                document.summary = results.get('summary') or document.summary or ""
             except Exception:
                 document.summary = document.summary or ""
 
-        # -------------------------------------------
-        # 📌 CREATE VERSION SNAPSHOT BEFORE SAVING
-        # -------------------------------------------
-        last_version = DocumentVersion.objects.filter(
-            document=document
-        ).order_by("-version_number").first()
-
+        # Create DocumentVersion snapshot (if not done previously)
+        from .models import DocumentVersion
+        last_version = DocumentVersion.objects.filter(document=document).order_by("-version_number").first()
         next_version = (last_version.version_number + 1) if last_version else 1
-
         DocumentVersion.objects.create(
             document=document,
             version_number=next_version,
             content=document.extracted_text or ""
         )
-        # -------------------------------------------
 
-        # Final save
         document.save()
 
-        create_notification(
-            request.user,
-            f"Document '{document.title}' analyzed. Risk score: {document.risk_score}"
-        )
-        log_activity(request.user, "Analyzed document", {
-            "document_id": document.id,
-            "risk": document.risk_score
-        })
+        create_notification(request.user, f"Document '{document.title}' analyzed. Risk score: {document.risk_score}")
+        log_activity(request.user, "Analyzed document", {"document_id": document.id, "risk": document.risk_score})
 
-        serializer = DocumentSerializer(document, context={"request": request})
+        serializer = DocumentSerializer(document, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     

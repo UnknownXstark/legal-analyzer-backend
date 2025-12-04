@@ -169,7 +169,7 @@ AWS_S3_REGION_NAME = 'your-region'  # e.g., 'us-east-1'
 AWS_QUERYSTRING_AUTH = False
 
 # Use S3 for media storage
-DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+# DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 
 
 # from datetime import timedelta
@@ -185,3 +185,8 @@ DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 # EMAIL SETTINGS (DEV)
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 DEFAULT_FROM_EMAIL = 'noreply@legaldoc.com'
+
+
+from dotenv import load_dotenv
+
+load_dotenv()
