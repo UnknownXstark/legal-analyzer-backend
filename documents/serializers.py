@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Document, DocumentComment, DocumentVersion
+from .models import Document, DocumentComment, DocumentVersion, SharedDocument
 from django.contrib.auth import get_user_model
 
 class DocumentSerializer(serializers.ModelSerializer):
@@ -71,3 +71,12 @@ class DocumentVersionDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = DocumentVersion
         fields = ["id", "version_number", "content", "created_at"]
+
+class SharedDocumentSerializer(serializers.ModelSerializer):
+    lawyer_name = serializers.CharField(source="lawyer.username", read_only=True)
+    client_name = serializers.CharField(source="client.username", read_only=True)
+    document_title = serializers.CharField(source="document.title", read_only=True)
+
+    class Meta:
+        model = SharedDocument
+        fields = "__all__"

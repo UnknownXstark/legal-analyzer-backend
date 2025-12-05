@@ -80,3 +80,25 @@ class DocumentVersion(models.Model):
 
     def __str__(self):
         return f"{self.document.title} v{self.version_number}"
+    
+
+class SharedDocument(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('accepted', 'Accepted'),
+        ('declined', 'Declined'),
+    ]
+
+    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="shares")
+    lawyer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="shared_documents_as_lawyer")
+    client = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="shared_documents_as_client")
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('document', 'client')  # Prevent duplicate invitations
+
+    def __str__(self):
+        return f"{self.document} shared with {self.client} ({self.status})"

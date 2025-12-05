@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import DocumentListView, DocumentUploadView, DocumentDetailView, DocumentAnalysisView, DocumentReportView, DocumentDeleteView, IndividualDashboardView, AdminDashboardView, LawyerDashboardView, LawyerDashboardAnalyticsView, AdminDashboardAnalyticsView, DocumentDownloadView, DocumentCommentsView, DocumentCommentDeleteView, DocumentVersionListView, DocumentVersionDetailView
+from .views import DocumentListView, DocumentUploadView, DocumentDetailView, DocumentAnalysisView, DocumentReportView, DocumentDeleteView, IndividualDashboardView, AdminDashboardView, LawyerDashboardView, LawyerDashboardAnalyticsView, AdminDashboardAnalyticsView, DocumentDownloadView, DocumentCommentsView, DocumentCommentDeleteView, DocumentVersionListView, DocumentVersionDetailView, ShareDocumentView, AcceptSharedDocumentView, DeclineSharedDocumentView, LawyerSharedDocumentsList, ClientSharedDocumentsList
 
 urlpatterns = [
     path('', DocumentListView.as_view(), name='document-list'),
@@ -13,6 +13,11 @@ urlpatterns = [
     path('comments/<int:comment_id>/', DocumentCommentDeleteView.as_view(), name='document-comment-delete'),
     path('<int:pk>/versions/', DocumentVersionListView.as_view(), name='document-versions-list'),
     path('versions/<int:version_id>/', DocumentVersionDetailView.as_view(), name='document-version-detail'),
+    path("share/", ShareDocumentView.as_view(), name="share-document"),
+    path("share/<int:share_id>/accept/", AcceptSharedDocumentView.as_view(), name="accept-shared-document"),
+    path("share/<int:share_id>/decline/", DeclineSharedDocumentView.as_view(), name="decline-shared-document"),
+    path("shared/by-me/", LawyerSharedDocumentsList.as_view(), name="lawyer-shared-documents"),
+    path("shared/with-me/", ClientSharedDocumentsList.as_view(), name="client-shared-documents"),
 
     # Dashboards
     path('dashboard/individual/', IndividualDashboardView.as_view(), name='individual-dashboard'),
