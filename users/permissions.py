@@ -6,7 +6,7 @@ class IsLawyer(BasePermission):
 
 class IsClient(BasePermission):
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == "client"
+        return request.user.is_authenticated and request.user.role == "individual"
 
 class IsAdmin(BasePermission):
     def has_permission(self, request, view):

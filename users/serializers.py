@@ -9,7 +9,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
-from .models import ClientAssignment, User
+from .models import ClientAssignment, User, AssignmentRequest
 
 User = get_user_model()
 
@@ -63,23 +63,51 @@ class ClientAssignmentSerializer(serializers.ModelSerializer):
         fields = ['id', 'lawyer', 'client', 'status', 'created_at']
 
 
-class CreateAssignmentSerializer(serializers.Serializer):
+# class CreateAssignmentSerializer(serializers.Serializer):
+#     client_id = serializers.IntegerField()
+
+#     def validate_client_id(self, value):
+#         from .models import User, ClientAssignment
+
+#         try:
+#             client = User.objects.get(id=value)
+#         except User.DoesNotExist:
+#             raise serializers.ValidationError("Client does not exist")
+
+#         # Ensure the target user is actually a client
+#         if client.role != "individual":
+#             raise serializers.ValidationError("Only clients can be assigned")
+
+#         # Ensure client does not already have a lawyer
+#         if hasattr(client, "lawyer_assignment"):
+#             raise serializers.ValidationError("Client already has a lawyer")
+
+#         return value
+    
+class AssignmentRequestSerializer(serializers.ModelSerializer):
+    lawyer = serializers.StringRelatedField()
+    client = serializers.StringRelatedField()
+
+    class Meta:
+        model = AssignmentRequest
+        fields = ['id', 'lawyer', 'client', 'message', 'status', 'created_at', 'updated_at']
+
+
+class CreateAssignmentRequestSerializer(serializers.Serializer):
     client_id = serializers.IntegerField()
+    message = serializers.CharField(required=False, allow_blank=True)
 
     def validate_client_id(self, value):
-        from .models import User, ClientAssignment
-
         try:
             client = User.objects.get(id=value)
         except User.DoesNotExist:
             raise serializers.ValidationError("Client does not exist")
 
-        # Ensure the target user is actually a client
         if client.role != "individual":
-            raise serializers.ValidationError("Only clients can be assigned")
+            raise serializers.ValidationError("Target user must be a client (individual)")
 
-        # Ensure client does not already have a lawyer
+        # If client already has an accepted assignment, reject
         if hasattr(client, "lawyer_assignment"):
-            raise serializers.ValidationError("Client already has a lawyer")
+            raise serializers.ValidationError("Client already has an assigned lawyer")
 
         return value
