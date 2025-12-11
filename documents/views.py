@@ -175,17 +175,15 @@ class DocumentAnalysisView(APIView):
         try:
             results = process_document(document.extracted_text, generate_summary_flag=True)
         except Exception:
-            results = {
-                "clauses_found": {},
-                "entities": [],
-                "summary": "",
-                "risk_score": "Unknown"
-            }
+            results = {}
 
-        # Save results
-        document.clauses_found = results.get("clauses_found", document.clauses_found)
+        # Always ensure clauses_found is a valid object
+        clauses = results.get("clauses_found") or {}
+
+        document.clauses_found = clauses
         document.risk_score = results.get("risk_score", document.risk_score)
         document.summary = results.get("summary", document.summary)
+
         document.analyzed_at = timezone.now()
         document.status = "analyzed"
 
